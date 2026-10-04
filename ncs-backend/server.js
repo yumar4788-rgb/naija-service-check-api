@@ -80,6 +80,10 @@ http.createServer((req,res)=>{
       let b='';req.on('data',x=>{b+=x;if(b.length>1e5)req.destroy()});
       return req.on('end',()=>{try{
         const d=load(c),i=p[3]!==undefined?+p[3]:-1;
+        if(req.method==='POST'&&p[3]==='bulk'){const arr=JSON.parse(b);if(!Array.isArray(arr)||arr.length>2000)return send(res,400,{error:'send a list of up to 2000 records'});
+          const K={organisations:r=>norm(r.name+r.rc),nafdac:r=>norm(r.number),domains:r=>norm(r.domain),warnings:r=>norm(r.org+r.issue)},key=K[c],seen=new Set(d.map(key));let added=0,skipped=0;
+          arr.forEach(r=>{if(!r||typeof r!=='object'||!key(r).trim()||seen.has(key(r))){skipped++;return}seen.add(key(r));r.checkedBy=who;d.push(r);added++});
+          save(c,d);log('bulk import ('+added+' added, '+skipped+' skipped)',c,'CSV');return send(res,201,{ok:true,added,skipped})}
         if(req.method==='POST'){const r=JSON.parse(b);r.checkedBy=who;d.push(r);save(c,d);log('add',c,r.name||r.number||r.domain||r.org);return send(res,201,{ok:true,count:d.length})}
         if(!(i>=0&&i<d.length))return send(res,404,{error:'no such record'});
         if(req.method==='PUT'){const r=JSON.parse(b);r.checkedBy=who;d[i]=r;save(c,d);log('edit',c,r.name||r.number||r.domain||r.org);return send(res,200,{ok:true})}
