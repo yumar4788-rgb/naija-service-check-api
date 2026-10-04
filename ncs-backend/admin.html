@@ -1,0 +1,42 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NSC Admin</title>
+<style>
+:root{--ink:#1d2330;--mut:#5a6372;--blue:#0b3d91;--green:#0f7a43;--red:#b3261e;--amb:#b26a00;--line:#dde2e8;--soft:#f3f5f7}
+*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,sans-serif;color:var(--ink);background:#fff}
+header{background:var(--blue);color:#fff;padding:12px 16px;font-weight:800}
+.w{display:flex;min-height:calc(100vh - 48px)}aside{width:210px;border-right:1px solid var(--line);padding:10px;background:var(--soft)}
+aside button{display:block;width:100%;text-align:left;border:0;background:none;padding:10px;font:inherit;border-radius:8px;cursor:pointer}aside button.on{background:var(--blue);color:#fff}
+main{flex:1;padding:16px;overflow-x:auto;min-width:0}input,select{font:inherit;padding:9px;border:2px solid var(--line);border-radius:8px;width:100%}
+.b{background:var(--blue);color:#fff;border:0;border-radius:8px;padding:9px 14px;font:700 15px system-ui;cursor:pointer}.b.r{background:var(--red)}.b.o{background:#fff;color:var(--blue);border:2px solid var(--blue)}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid var(--line);padding:7px;text-align:left;vertical-align:top}th{background:var(--soft)}
+.tag{font-weight:700;border:2px solid currentColor;border-radius:6px;padding:1px 6px;font-size:13px}.ok{color:var(--green)}.st{color:var(--amb)}
+.cards{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}.c{border:1px solid var(--line);border-radius:12px;padding:12px}.c b{font-size:26px;display:block}
+.f{display:grid;gap:8px;max-width:560px;margin:12px 0;padding:12px;border:2px solid var(--blue);border-radius:12px}.f label{font-weight:700;font-size:14px}
+#lg{max-width:420px;margin:40px auto;padding:16px;display:grid;gap:10px}.hide{display:none}.msg{color:var(--red)}
+@media(max-width:700px){.w{flex-direction:column}aside{width:auto;display:flex;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line)}aside button{white-space:nowrap;width:auto}}
+</style></head><body>
+<header>NAIJA SERVICE CHECK · Admin</header>
+<form id="lg"><h2>Sign in</h2><label>API address<input id="api" placeholder="https://your-api/v1" required></label><label>Your name<input id="nm" required></label><label>Admin key<input id="key" type="password" required></label><button class="b">SIGN IN</button><div class="msg" id="lm"></div></form>
+<div class="w hide" id="app"><aside id="nav"></aside><main id="mn"></main></div>
+<script>
+var CF={organisations:{t:'Organisations',f:['name','rc','state','status','source','url','checked']},nafdac:{t:'NAFDAC Checks',f:['number','name','applicant','category','status','source','url','checked']},domains:{t:'Verification Sources (official domains)',f:['org','domain','url','checked']},warnings:{t:'Scam & Recruitment Alerts',f:['org','date','issue','match','url']}};
+var API,KEY,NM,cur='dash',$=function(i){return document.getElementById(i)};
+function e(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function call(m,p,b){return fetch(API+'/admin/'+p,{method:m,headers:{'x-api-key':KEY,'x-admin-name':NM,'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined}).then(function(r){if(r.status==401)throw'Wrong key';if(!r.ok)throw'Error '+r.status;return r.json()})}
+function nextRev(d){var x=new Date(d);if(isNaN(x))return'set a date';x.setDate(x.getDate()+180);return x.toISOString().slice(0,10)}
+function isStale(d){return (Date.now()-new Date(d))/864e5>180}
+$('lg').onsubmit=function(ev){ev.preventDefault();API=$('api').value.replace(/\/+$/,'');KEY=$('key').value;NM=$('nm').value;call('GET','summary').then(function(){$('lg').classList.add('hide');$('app').classList.remove('hide');nav();go('dash')}).catch(function(x){$('lm').textContent=String(x)==='Wrong key'?'Wrong key.':'Could not reach the API: '+x})};
+function nav(){var i=[['dash','Dashboard']].concat(Object.keys(CF).map(function(k){return[k,CF[k].t]})).concat([['audit','Audit Log']]);$('nav').innerHTML=i.map(function(x){return'<button data-g="'+x[0]+'">'+x[1]+'</button>'}).join('')}
+$('nav').onclick=function(ev){var g=ev.target.dataset.g;if(g)go(g)};
+function go(v){cur=v;[].forEach.call($('nav').children,function(b){b.classList.toggle('on',b.dataset.g==v)});
+if(v=='dash')call('GET','summary').then(function(s){$('mn').innerHTML='<h1>Dashboard</h1><div class="cards">'+Object.keys(s).map(function(k){return'<div class="c"><span>'+CF[k].t+'</span><b>'+s[k].total+'</b><span class="'+(s[k].stale?'st':'ok')+'">'+s[k].stale+' need review</span></div>'}).join('')+'</div><p>Only enter records you have checked on the official source. Add the source link and today\'s date.</p>'});
+else if(v=='audit')call('GET','audit').then(function(a){$('mn').innerHTML='<h1>Audit Log</h1><table><tr><th>Time</th><th>By</th><th>Action</th><th>Collection</th><th>Record</th></tr>'+a.map(function(r){return'<tr><td>'+e(r.time.replace('T',' ').slice(0,19))+'</td><td>'+e(r.by)+'</td><td>'+e(r.action)+'</td><td>'+e(r.collection)+'</td><td>'+e(r.record)+'</td></tr>'}).join('')+'</table>'});
+else list(v)}
+function list(c,edit){call('GET',c).then(function(d){var f=CF[c].f,rec=edit!=null?d[edit]:{};
+var h='<h1>'+CF[c].t+'</h1><form class="f" id="rf"><b>'+(edit!=null?'Edit record':'Add a record')+'</b>'+f.map(function(k){var v=Array.isArray(rec[k])?rec[k].join(', '):rec[k]||(k=='checked'||k=='date'?new Date().toISOString().slice(0,10):'');return'<label>'+k+(k=='match'?' (comma separated)':'')+'<input name="'+k+'" value="'+e(v)+'" '+(k=='url'?'type="url" ':'')+'required></label>'}).join('')+'<div><button class="b">SAVE</button> '+(edit!=null?'<button type="button" class="b o" id="cx">Cancel</button>':'')+'</div><span class="msg" id="fm"></span></form>';
+h+='<table><tr>'+f.map(function(k){return'<th>'+k+'</th>'}).join('')+'<th>Review</th><th></th></tr>'+d.map(function(r,i){var dt=r.checked||r.date;return'<tr>'+f.map(function(k){return'<td>'+e(Array.isArray(r[k])?r[k].join(', '):r[k])+'</td>'}).join('')+'<td><span class="tag '+(isStale(dt)?'st':'ok')+'">'+(isStale(dt)?'DUE':'OK')+'</span><br>next '+nextRev(dt)+'<br>by '+e(r.checkedBy||'-')+'</td><td><button class="b o" data-e="'+i+'">Edit</button> <button class="b r" data-d="'+i+'">Delete</button></td></tr>'}).join('')+'</table>';
+$('mn').innerHTML=h;
+$('rf').onsubmit=function(ev){ev.preventDefault();var o={};f.forEach(function(k){var v=$('rf').elements[k].value.trim();o[k]=k=='match'?v.split(',').map(function(x){return x.trim()}).filter(Boolean):v});
+call(edit!=null?'PUT':'POST',c+(edit!=null?'/'+edit:''),o).then(function(){list(c)}).catch(function(x){$('fm').textContent=x})};
+if($('cx'))$('cx').onclick=function(){list(c)};
+$('mn').onclick=function(ev){var t=ev.target;if(t.dataset.e!=null&&t.dataset.e!=='')list(c,+t.dataset.e);else if(t.dataset.d!=null&&t.dataset.d!==''&&confirm('Delete this record?'))call('DELETE',c+'/'+t.dataset.d).then(function(){list(c)})}})}
+</script></body></html>
